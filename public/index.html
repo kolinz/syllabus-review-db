@@ -9,10 +9,10 @@
 <body>
   <div id="app"></div>
 
-  <!-- XSS対策: DOMPurify でMarkdown出力をサニタイズ -->
-  <script src="https://unpkg.com/dompurify@3/dist/purify.min.js"></script>
-  <!-- Markdownレンダリング -->
-  <script src="https://unpkg.com/marked/marked.min.js"></script>
+  <!-- XSS対策: DOMPurify でMarkdown出力をサニタイズ（ローカルファイル） -->
+  <script src="/lib/purify.min.js"></script>
+  <!-- Markdownレンダリング（ローカルファイル） -->
+  <script src="/lib/marked.min.js"></script>
   <!-- SPAロジック -->
   <script src="/app.js"></script>
 </body>

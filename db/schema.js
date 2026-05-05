@@ -120,6 +120,11 @@ function initializeDatabase(db) {
   addKomaPublished();
   addAssignPublished();
 
+  // assignment_overview カラム追加（既存DBへのマイグレーション）
+  try {
+    db.prepare('ALTER TABLE assignment_reviews ADD COLUMN assignment_overview TEXT').run();
+  } catch (e) { /* already exists */ }
+
   // ===========================
   // admin ユーザーの自動作成
   // ===========================

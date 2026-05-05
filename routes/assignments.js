@@ -39,7 +39,7 @@ router.get('/', optionalAuth, (req, res) => {
       SELECT
         ar.id, ar.syllabus_review_id, ar.academic_year,
         ar.assignment_number, ar.assignment_name,
-        ar.evaluation_id, ar.evaluation_comment, ar.university_learning,
+        ar.evaluation_id, ar.assignment_overview, ar.evaluation_comment, ar.university_learning,
         ar.is_published,
         ar.created_by, ar.created_at, ar.updated_at,
         sr.subject_name,
@@ -92,7 +92,7 @@ router.get('/:id', optionalAuth, (req, res) => {
 router.post('/', authenticate, (req, res) => {
   const {
     syllabus_review_id, academic_year, assignment_number,
-    assignment_name, evaluation_id, evaluation_comment, university_learning,
+    assignment_name, evaluation_id, assignment_overview, evaluation_comment, university_learning,
     is_published,
   } = req.body;
 
@@ -121,17 +121,18 @@ router.post('/', authenticate, (req, res) => {
     const result = req.db.prepare(`
       INSERT INTO assignment_reviews (
         syllabus_review_id, academic_year, assignment_number,
-        assignment_name, evaluation_id, evaluation_comment, university_learning,
+        assignment_name, evaluation_id, assignment_overview, evaluation_comment, university_learning,
         is_published, created_by, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
     `).run(
       syllabusId,
       parseInt(academic_year, 10),
       parseInt(assignment_number, 10),
-      assignment_name     || null,
-      evaluation_id       ? parseInt(evaluation_id, 10) : null,
-      evaluation_comment  || null,
-      university_learning || null,
+      assignment_name      || null,
+      evaluation_id        ? parseInt(evaluation_id, 10) : null,
+      assignment_overview  || null,
+      evaluation_comment   || null,
+      university_learning  || null,
       is_published ? 1 : 0,
       req.user.id,
     );
@@ -179,8 +180,9 @@ router.put('/:id', authenticate, (req, res) => {
     return res.status(403).json({ error: 'この課題レビューを編集する権限がありません' });
   }
 
-  const is_published       = req.body.is_published       != null ? (req.body.is_published ? 1 : 0)           : existing.is_published;
-  const academic_year      = req.body.academic_year      != null ? parseInt(req.body.academic_year, 10)      : existing.academic_year;
+  const is_published          = req.body.is_published          != null ? (req.body.is_published ? 1 : 0)          : existing.is_published;
+  const assignment_overview   = req.body.assignment_overview   != null ? req.body.assignment_overview          : existing.assignment_overview;
+  const academic_year         = req.body.academic_year         != null ? parseInt(req.body.academic_year, 10)  : existing.academic_year;
   const assignment_number  = req.body.assignment_number  != null ? parseInt(req.body.assignment_number, 10)  : existing.assignment_number;
   const assignment_name    = req.body.assignment_name    != null ? req.body.assignment_name    : existing.assignment_name;
   const evaluation_id      = req.body.evaluation_id      != null ? parseInt(req.body.evaluation_id, 10)      : existing.evaluation_id;
@@ -190,18 +192,19 @@ router.put('/:id', authenticate, (req, res) => {
   try {
     req.db.prepare(`
       UPDATE assignment_reviews SET
-        academic_year       = ?,
-        assignment_number   = ?,
-        assignment_name     = ?,
-        evaluation_id       = ?,
-        evaluation_comment  = ?,
-        university_learning = ?,
-        is_published        = ?,
-        updated_at          = CURRENT_TIMESTAMP
+        academic_year         = ?,
+        assignment_number     = ?,
+        assignment_name       = ?,
+        evaluation_id         = ?,
+        assignment_overview   = ?,
+        evaluation_comment    = ?,
+        university_learning   = ?,
+        is_published          = ?,
+        updated_at            = CURRENT_TIMESTAMP
       WHERE id = ?
     `).run(
       academic_year, assignment_number, assignment_name,
-      evaluation_id, evaluation_comment, university_learning,
+      evaluation_id, assignment_overview, evaluation_comment, university_learning,
       is_published, id,
     );
 

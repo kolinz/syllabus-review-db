@@ -616,6 +616,8 @@ async function renderSyllabusList(main) {
 async function renderSyllabusDetail(main, id) {
   showLoading(main);
 
+  await loadMasters(); // 常に最新マスターを取得
+
   const res = await api('GET', '/api/syllabi/' + id);
   if (res.error) {
     main.innerHTML = '';
@@ -798,23 +800,33 @@ async function renderSyllabusDetail(main, id) {
   evalHdr.textContent = 'シラバス外部評価';
   evalCard.appendChild(evalHdr);
 
-  if (d.evaluation) {
-    const evalGrp = document.createElement('div');
-    evalGrp.className = 'form-group';
-    const evalLbl = document.createElement('div');
-    evalLbl.className = 'form-label';
-    evalLbl.textContent = '評価';
-    evalGrp.appendChild(evalLbl);
-    const cls = EVAL_BADGE[d.evaluation] || 'badge-muted';
+  // 評価ボタン（読み取り専用 - 常に表示）
+  const evalGrp = document.createElement('div');
+  evalGrp.className = 'form-group';
+  const evalLbl = document.createElement('div');
+  evalLbl.className = 'form-label';
+  evalLbl.textContent = '評価';
+  evalGrp.appendChild(evalLbl);
+  const evalOpts = state.masters.evaluation || [];
+  if (evalOpts.length > 0) {
+    evalGrp.appendChild(createEvalOpts(evalOpts, d.evaluation_id, true));
+  } else if (d.evaluation) {
+    // マスターが未ロードの場合はバッジで代替表示
     const badge = document.createElement('span');
-    badge.className = 'badge ' + cls;
+    badge.className = 'badge ' + (EVAL_BADGE[d.evaluation] || 'badge-muted');
     badge.style.fontSize = '14px';
     badge.style.padding = '4px 16px';
     badge.textContent = d.evaluation;
     evalGrp.appendChild(badge);
-    evalCard.appendChild(evalGrp);
+  } else {
+    const msg = document.createElement('span');
+    msg.className = 'text-muted';
+    msg.textContent = '（未設定）';
+    evalGrp.appendChild(msg);
   }
+  evalCard.appendChild(evalGrp);
 
+  // 評価コメント・大学生のうちに学んでほしいこと（Markdownレンダリング）
   const mdEvalFields = [
     { key: 'evaluation_comment',  label: '評価コメント' },
     { key: 'university_learning', label: '大学生のうちに学んでほしいこと' },
@@ -1228,6 +1240,10 @@ function openAssignModal(row, syllabusId, onSaved) {
       <input class="form-control" type="text" id="assign-name" value="${row ? escT(row.assignment_name || '') : ''}" />
     </div>
     <div class="form-group">
+      <label class="form-label">概要</label>
+      <div id="assign-overview-md"></div>
+    </div>
+    <div class="form-group">
       <label class="form-label">評価</label>
       <div id="assign-eval-opts"></div>
     </div>
@@ -1261,6 +1277,8 @@ function openAssignModal(row, syllabusId, onSaved) {
   // Markdownフィールド
   const commentMdWrap  = modal.querySelector('#assign-comment-md');
   const learningMdWrap = modal.querySelector('#assign-learning-md');
+  modal.querySelector('#assign-overview-md').appendChild(
+    createMdField('assign-overview', row ? row.assignment_overview || '' : '', false));
   commentMdWrap.appendChild(createMdField('assign-comment',  row ? row.evaluation_comment  || '' : '', false));
   learningMdWrap.appendChild(createMdField('assign-learning', row ? row.university_learning || '' : '', false));
 
@@ -1306,6 +1324,8 @@ function openAssignModal(row, syllabusId, onSaved) {
 // ========================================
 async function renderSyllabusForm(main, id) {
   showLoading(main);
+
+  await loadMasters(); // 常に最新マスターを取得
 
   const isEdit = !!id;
   let d = null;
@@ -1841,16 +1861,16 @@ function openKomaDetailModal(row) {
     lbl.textContent = label;
     grp.appendChild(lbl);
 
-    // タブなし・読み取り専用テキストエリアで表示
-    const ta = document.createElement('textarea');
-    ta.className = 'form-control';
-    ta.readOnly = true;
-    ta.value = content || '（未入力）';
-    ta.style.minHeight = '100px';
-    ta.style.background = '#f5f7fc';
-    ta.style.color = '#2a3a5e';
-    ta.style.resize = 'none';
-    grp.appendChild(ta);
+    // Markdownレンダリングで表示
+    const div = document.createElement('div');
+    div.className = 'md-preview-area active md-content md-readonly';
+    div.style.padding = '12px 16px';
+    div.style.background = '#f5f7fc';
+    div.style.borderRadius = '6px';
+    div.style.minHeight = '80px';
+    div.style.border = '1px solid #d0d8eb';
+    div.innerHTML = content ? renderMd(content) : '<span style="color:#aab4c8;">（未入力）</span>';
+    grp.appendChild(div);
 
     return grp;
   }
@@ -2181,7 +2201,7 @@ function openAssignDetailModal(row) {
   }
   modal.appendChild(badgeRow);
 
-  // ---- 読み取り専用テキストエリアを生成するヘルパー ----
+  // ---- Markdownレンダリングで表示するヘルパー ----
   function addSection(label, content) {
     if (!content) return;
     const grp = document.createElement('div');
@@ -2190,23 +2210,24 @@ function openAssignDetailModal(row) {
     lbl.className = 'form-label';
     lbl.textContent = label;
     grp.appendChild(lbl);
-    const ta = document.createElement('textarea');
-    ta.className = 'form-control';
-    ta.readOnly = true;
-    ta.value = content;
-    ta.style.minHeight = '100px';
-    ta.style.background = '#f5f7fc';
-    ta.style.color = '#2a3a5e';
-    ta.style.resize = 'none';
-    grp.appendChild(ta);
+    const div = document.createElement('div');
+    div.className = 'md-preview-area active md-content md-readonly';
+    div.style.padding = '12px 16px';
+    div.style.background = '#f5f7fc';
+    div.style.borderRadius = '6px';
+    div.style.minHeight = '80px';
+    div.style.border = '1px solid #d0d8eb';
+    div.innerHTML = renderMd(content);
+    grp.appendChild(div);
     modal.appendChild(grp);
   }
 
+  addSection('概要', row.assignment_overview);
   addSection('評価コメント', row.evaluation_comment);
   addSection('大学生のうちに学んでほしいこと', row.university_learning);
 
-  // 両方未入力の場合
-  if (!row.evaluation_comment && !row.university_learning) {
+  // すべて未入力の場合
+  if (!row.assignment_overview && !row.evaluation_comment && !row.university_learning) {
     const msg = document.createElement('p');
     msg.className = 'text-muted';
     msg.textContent = '（詳細情報はありません）';
@@ -2274,6 +2295,10 @@ function openAssignListModal(row, defaultSyllabusId, syllabusRows, onSaved) {
       <input class="form-control" type="text" id="al-name" value="${row ? escT(row.assignment_name || '') : ''}" />
     </div>
     <div class="form-group">
+      <label class="form-label">概要</label>
+      <div id="al-overview-md"></div>
+    </div>
+    <div class="form-group">
       <label class="form-label">評価</label>
       <div id="al-eval-opts"></div>
     </div>
@@ -2305,6 +2330,8 @@ function openAssignListModal(row, defaultSyllabusId, syllabusRows, onSaved) {
   evalWrap.appendChild(createEvalOpts(state.masters.evaluation || [], row ? row.evaluation_id : null, false));
 
   // Markdownフィールド
+  modal.querySelector('#al-overview-md').appendChild(
+    createMdField('al-overview', row ? row.assignment_overview || '' : '', false));
   modal.querySelector('#al-comment-md').appendChild(
     createMdField('al-comment',  row ? row.evaluation_comment  || '' : '', false));
   modal.querySelector('#al-learning-md').appendChild(
@@ -2333,18 +2360,21 @@ function openAssignListModal(row, defaultSyllabusId, syllabusRows, onSaved) {
     }
 
     const alPublished = modal.querySelector('#al-published') ? (modal.querySelector('#al-published').checked ? 1 : 0) : 0;
+    const alOverview = getMdValue('al-overview');
     let r;
     if (isEdit) {
       r = await api('PUT', '/api/assignments/' + row.id, {
         academic_year: year, assignment_number: number, assignment_name: name,
-        evaluation_id: evalId, evaluation_comment: comment, university_learning: learning,
+        evaluation_id: evalId, assignment_overview: alOverview,
+        evaluation_comment: comment, university_learning: learning,
         is_published: alPublished,
       });
     } else {
       r = await api('POST', '/api/assignments', {
         syllabus_review_id: syllabusId, academic_year: year,
         assignment_number: number, assignment_name: name,
-        evaluation_id: evalId, evaluation_comment: comment, university_learning: learning,
+        evaluation_id: evalId, assignment_overview: alOverview,
+        evaluation_comment: comment, university_learning: learning,
         is_published: alPublished,
       });
     }
