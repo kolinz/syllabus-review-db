@@ -42,7 +42,7 @@
 ### インストール
 
 ```bash
-git clone <repository-url>
+git clone https://github.com/kolinz/syllabus-review-db.git
 cd syllabus-review-db
 npm install
 ```
